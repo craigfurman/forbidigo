@@ -20,13 +20,13 @@ func foo() {
 	})
 
 	t.Run("displays custom messages", func(t *testing.T) {
-		linter, _ := NewLinter([]string{`#[Please don't use this!]fmt\.Printf`})
+		linter, _ := NewLinter([]string{`fmt\.Printf(# Please don't use this!)?`})
 		expectIssues(t, linter, `
-package bar
+	package bar
 
-func foo() {
+	func foo() {
 	fmt.Printf("here i am")
-}`, "use of `fmt.Printf` forbidden by pattern `fmt\\.Printf` at testing.go:5:2: Please don't use this!")
+	}`, "use of `fmt.Printf` forbidden by pattern `fmt\\.Printf` at testing.go:5:2: Please don't use this!")
 	})
 
 	t.Run("it doesn't require a package on the identifier", func(t *testing.T) {

@@ -3,9 +3,9 @@ package forbidigo
 import (
 	"fmt"
 	"regexp"
+	"regexp/syntax"
+	"strings"
 )
-
-var ptrnWithMsg = regexp.MustCompile(`(#\[(?P<msg>[^\]]+)\])?(?P<pattern>.+)`)
 
 type pattern struct {
 	pattern *regexp.Regexp
@@ -14,18 +14,35 @@ type pattern struct {
 
 func parse(ptrn string) (*pattern, error) {
 	p := &pattern{}
-	matches := ptrnWithMsg.FindStringSubmatch(ptrn)
-	for i, name := range ptrnWithMsg.SubexpNames() {
-		if name == "msg" {
-			p.msg = matches[i]
-		} else if name == "pattern" {
-			re, err := regexp.Compile(matches[i])
-			if err != nil {
-				return nil, fmt.Errorf("unable to compile pattern `%s`: %s", matches[i], err)
-			}
-			p.pattern = re
-		}
+	parsedPattern, err := syntax.Parse(ptrn, syntax.Perl)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse pattern: %s: %s", ptrn, err)
 	}
+	if len(parsedPattern.Sub) == 0 {
+		p.pattern, err = regexp.Compile(parsedPattern.String())
+		if err != nil {
+			return nil, fmt.Errorf("unable to compile pattern: %s: %s", ptrn, err)
+		}
+		return p, nil
+	}
+	p.pattern, err = regexp.Compile(parsedPattern.Sub[0].String())
+	if err != nil {
+		return nil, fmt.Errorf("unable to compile pattern: %s: %s", ptrn, err)
+	}
+	if len(parsedPattern.Sub) < 2 {
+		return p, nil
+	}
+	msgPattern := deepestSubmatch(parsedPattern).String()
+	p.msg = strings.TrimSpace(strings.TrimPrefix(msgPattern, "#"))
 
 	return p, nil
+}
+
+func deepestSubmatch(expr *syntax.Regexp) *syntax.Regexp {
+	for {
+		if len(expr.Sub) == 0 {
+			return expr
+		}
+		expr = expr.Sub[len(expr.Sub)-1]
+	}
 }
